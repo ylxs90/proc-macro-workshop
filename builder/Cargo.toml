@@ -16,4 +16,7 @@ path = "tests/progress.rs"
 trybuild = { version = "1.0.108", features = ["diff"] }
 
 [dependencies]
+quote = "1.0.47"
+syn = {version = "3.0.3", features = ["extra-traits"]}
 # TODO
+
