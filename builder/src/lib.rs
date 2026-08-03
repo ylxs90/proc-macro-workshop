@@ -2,11 +2,10 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::Data::Struct;
 use syn::Fields::Named;
-use syn::Type::Path;
+use syn::spanned::Spanned;
 use syn::{
     DataStruct, FieldsNamed, GenericArgument, Ident, Meta, PathArguments, Type, parse_macro_input,
 };
-use syn::spanned::Spanned;
 
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: TokenStream) -> TokenStream {
@@ -30,9 +29,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let optionalized = fields.iter().map(|f| {
         let name = f.ident.clone();
         let ty = &f.ty;
-        if let Path(ty) = &f.ty.clone()
-            && ty.path.segments.first().unwrap().ident.to_string() == "Option"
-        {
+        if extract_inner_from(&ty, "Option").is_some() || extract_inner_from(&ty, "Vec").is_some() {
             quote! {
                 #name: #ty
             }
@@ -45,37 +42,35 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let init = fields.iter().map(|f| {
         let name = f.ident.clone().unwrap();
-        quote! {
-            #name: None
+        if extract_inner_from(&f.ty, "Vec").is_some() {
+            quote! {
+                #name: std::vec::Vec::new()
+            }
+        } else {
+            quote! {
+                #name: std::option::Option::None
+            }
         }
     });
 
     let flattened_accessors = fields.iter().filter_map(|f| attr_builder_each(f));
 
-    // let accessors = fields.iter().map(|f| {
-    //     let name = f.ident.clone().unwrap();
-    //     let ty = extract_inner_from(&f.ty, "Option").unwrap_or(&f.ty);
-    //     quote! {
-    //         pub fn # name( & mut self, #name: # ty) -> & mut Self {
-    //         self.# name = Some( # name);
-    //         self
-    //         }
-    //     }
-    // });
-
     let build = fields.iter().map(|f| {
         let name = f.ident.clone().unwrap();
-        if extract_inner_from(&f.ty, "Option").is_some() {
+        if extract_inner_from(&f.ty, "Option").is_some()
+            || extract_inner_from(&f.ty, "Vec").is_some()
+        {
             quote! {
             # name: self.# name.clone()
             }
         } else {
             quote! {
-            #name: self.#name.clone().ok_or(concat ! (stringify ! (# name), " is not set")) ?
+            #name: self.#name.clone().ok_or(concat ! (stringify ! (# name), " is not set"))?
             }
         }
     });
     quote! {
+
         pub struct #builder_ident {
                #(#optionalized,)*
         }
@@ -86,7 +81,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
             // #(#accessors)*
 
 
-            pub fn build(&mut self) -> Result<#ident, Box<dyn std::error::Error>> {
+
+            pub fn build(&mut self) -> std::result::Result<#ident, std::boxed::Box<dyn std::error::Error>> {
                 Ok(#ident {
                     #(#build,)*
                 })
@@ -132,14 +128,25 @@ fn extract_inner_from<'a>(ty: &'a Type, outer: &str) -> Option<&'a Type> {
 
 fn attr_builder_each(f: &syn::Field) -> Option<proc_macro2::TokenStream> {
     let name = f.ident.clone().unwrap();
-    let tp = extract_inner_from(&f.ty, "Option").unwrap_or(&f.ty);
+    let tp = extract_inner_from(&f.ty, "Option")
+        .unwrap_or(extract_inner_from(&f.ty, "Vec").unwrap_or(&f.ty));
     if f.attrs.is_empty() {
-        return Some(
-            quote! {    pub fn #name(&mut self, #name: #tp) -> &mut Self {
-                self.#name = Some(#name);
-                self
-            }},
-        );
+        return if extract_inner_from(&f.ty, "Vec").is_some() {
+            let tp = &f.ty;
+            Some(
+                quote! {    pub fn #name(&mut self, #name: #tp) -> &mut Self {
+                    self.#name = #name;
+                    self
+                }},
+            )
+        } else {
+            Some(
+                quote! {    pub fn #name(&mut self, #name: #tp) -> &mut Self {
+                    self.#name = std::option::Option::Some(#name);
+                    self
+                }},
+            )
+        };
     }
     for attr in f.attrs.iter() {
         if attr.path().segments.len() == 1 && attr.path().segments[0].ident == "builder" {
@@ -149,8 +156,13 @@ fn attr_builder_each(f: &syn::Field) -> Option<proc_macro2::TokenStream> {
                     let mut stream = stream.into_iter();
                     if let Some(e) = stream.next() {
                         if e.to_string() != "each" {
-
-                            return Some(syn::Error::new(l.tokens.span(), "expected `builder(each = \"...\")`").into_compile_error());
+                            return Some(
+                                syn::Error::new(
+                                    attr.meta.span(),
+                                    "expected `builder(each = \"...\")`",
+                                )
+                                .into_compile_error(),
+                            );
                         }
                     }
 
@@ -164,28 +176,21 @@ fn attr_builder_each(f: &syn::Field) -> Option<proc_macro2::TokenStream> {
                             if var_name == name {
                                 return Some(quote! {
                                    pub fn #var_name(&mut self, #var_name: #inner_tp) -> &mut Self {
-                                        if let Some(ref mut vec) = self.#name {
-                                            vec.push(#var_name);
-                                        } else {
-                                            self.#name = Some(vec![#var_name]);
-                                        }
+                                        self.#name.push(#var_name);
                                         self
                                     }
 
                                 });
                             } else {
+                                let tp = &f.ty;
                                 return Some(quote! {
                                    pub fn #var_name(&mut self, #var_name: #inner_tp) -> &mut Self {
-                                        if let Some(ref mut vec) = self.#name {
-                                            vec.push(#var_name);
-                                        } else {
-                                            self.#name = Some(vec![#var_name]);
-                                        }
+                                        self.#name.push(#var_name);
                                         self
                                    }
 
                                     pub fn #name(&mut self, #name: #tp) -> &mut Self {
-                                        self.#name = Some(#name);
+                                        self.#name = #name;
                                         self
                                     }
 
@@ -193,7 +198,6 @@ fn attr_builder_each(f: &syn::Field) -> Option<proc_macro2::TokenStream> {
                             }
                         }
                         _ => {
-
                             panic!("expected string literal");
                         }
                     }
@@ -205,10 +209,21 @@ fn attr_builder_each(f: &syn::Field) -> Option<proc_macro2::TokenStream> {
             }
         }
     }
-    Some(
-        quote! {   pub fn #name(&mut self, #name: #tp) -> &mut Self {
-                self.#name = Some(#name);
+
+    if extract_inner_from(&f.ty, "Vec").is_some() {
+        let tp = &f.ty;
+        Some(
+            quote! {    pub fn #name(&mut self, #name: #tp) -> &mut Self {
+                self.#name = #name;
                 self
             }},
-    )
+        )
+    } else {
+        Some(
+            quote! {    pub fn #name(&mut self, #name: #tp) -> &mut Self {
+                self.#name = std::option::Option::Some(#name);
+                self
+            }},
+        )
+    }
 }
