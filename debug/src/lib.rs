@@ -161,7 +161,3 @@ fn generics_contains(p: &TypePath, g: &Option<Ident>) -> bool {
         })
 }
 
-struct DebugAttr {
-    value: syn::LitStr,
-    bound: String,
-}

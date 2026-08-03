@@ -1,3 +1,4 @@
+#![feature(proc_macro_hygiene, stmt_expr_attributes)]
 // Write code here.
 //
 // To see what the code looks like after macro expansion:
@@ -5,10 +6,6 @@
 //
 // To run the code:
 //     $ cargo run
-
-use derive_debug::CustomDebug;
-use std::any;
-use std::fmt::{Debug, Formatter};
 use sorted::sorted;
 //
 // pub trait Trait {
@@ -32,17 +29,26 @@ use sorted::sorted;
 //
 //     assert_debug::<Field<Id>>();
 // }
+use std::fmt::{self, Display};
+use std::io;
 
 #[sorted]
-pub struct Error {
-    kind: ErrorKind,
-    message: String,
+pub enum Error {
+    Fmt(fmt::Error),
+    Io(io::Error),
 }
 
-enum ErrorKind {
-    Io,
-    Syntax,
-    Eof,
+impl Display for Error {
+    #[sorted::check]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::Error::*;
+
+        #[sorted]
+        match self {
+            Fmt(e) => write!(f, "{}", e),
+            Io(e) => write!(f, "{}", e),
+        }
+    }
 }
 
 fn main() {}
