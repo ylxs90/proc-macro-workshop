@@ -6,7 +6,6 @@
 //
 // To run the code:
 //     $ cargo run
-use sorted::sorted;
 //
 // pub trait Trait {
 //     type Value;
@@ -30,18 +29,15 @@ use sorted::sorted;
 //     assert_debug::<Field<Id>>();
 // }
 
+use derive_debug::CustomDebug;
 
-#[sorted::check]
-fn f(bytes: &[u8]) -> Option<u8> {
-    #[sorted]
-    match bytes {
-        [a] => Some(*a),
-        [a, b] => Some(a + b),
-        _other => None,
-    }
+#[derive(CustomDebug)]
+pub struct Field {
+    name: &'static str,
+    bitmask: u16,
 }
 
 fn main() {
-
-    println!("{:?}", f(b"Hello, world!"));
+    let x = 15;
+    println!("{x}");
 }

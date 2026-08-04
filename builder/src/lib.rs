@@ -1,10 +1,10 @@
 use proc_macro::TokenStream;
 use quote::quote;
+use syn::spanned::Spanned;
 use syn::Data::Struct;
 use syn::Fields::Named;
-use syn::spanned::Spanned;
 use syn::{
-    DataStruct, FieldsNamed, GenericArgument, Ident, Meta, PathArguments, Type, parse_macro_input,
+    parse_macro_input, DataStruct, FieldsNamed, GenericArgument, Ident, Meta, PathArguments, Type,
 };
 
 #[proc_macro_derive(Builder, attributes(builder))]

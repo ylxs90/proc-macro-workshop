@@ -14,7 +14,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let ident = &ast.ident;
     let origin_generics = ast.generics.clone();
     let g = add_trait_bounds(origin_generics.clone());
-    let mut gg = g.clone();
+    // let mut gg = g.clone();
     let gt = if !g.params.is_empty()
         && let GenericParam::Type(ref t) = g.params[0]
     {
@@ -23,8 +23,8 @@ pub fn derive(input: TokenStream) -> TokenStream {
         None
     };
     let (impl_generics, ty_generics, _w) = g.split_for_impl();
-    println!("{:?}", 1111);
-    println!("{:#?}", g.split_for_impl());
+    // println!("{:?}", 1111);
+    // println!("{:#?}", g.split_for_impl());
     let fields = if let Struct(DataStruct {
         fields: Named(FieldsNamed { ref named, .. }),
         ..
@@ -63,7 +63,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
                 }
             }
 
-            println!("{:#?}", &field.ty);
+            // println!("{:#?}", &field.ty);
 
             if let Some(debug) = extract_debug(field) {
                 quote! {
@@ -82,14 +82,14 @@ pub fn derive(input: TokenStream) -> TokenStream {
     } else {
         quote! { #ty_generics }
     };
-    println!("{:?}", 11);
-    gg.make_where_clause()
-        .predicates
-        .push(parse_quote!(#origin_generics: std::fmt::Debug));
+    // println!("{:?}", 11);
+    // gg.make_where_clause()
+    //     .predicates
+    //     .push(parse_quote!(#origin_generics: std::fmt::Debug));
 
     quote! {
 
-       impl #impl_generics std::fmt::Debug for #ident #gg {
+       impl #impl_generics std::fmt::Debug for #ident #ty_generics  {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_struct(stringify!(#ident))
                     #(.#each_fields)*
