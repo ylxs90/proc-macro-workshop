@@ -1,9 +1,10 @@
 use proc_macro::TokenStream;
-use syn::__private::TokenStream2;
+use quote::{ToTokens, quote};
 use syn::Item::Fn;
+use syn::__private::TokenStream2;
 use syn::spanned::Spanned;
 use syn::visit_mut::{VisitMut, visit_expr_match_mut};
-use syn::{ExprMatch, Item, ItemEnum, Pat, parse_macro_input};
+use syn::{Error, ExprMatch, Item, ItemEnum, Pat, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn sorted(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -52,34 +53,84 @@ fn handle_enum(ast: ItemEnum) -> Result<(), syn::Error> {
 }
 
 #[proc_macro_attribute]
-pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
-    let mut input_temp = input.clone();
-    let ast = parse_macro_input!(input as Item);
-    let _args = TokenStream2::from(args);
+pub fn check(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let mut ast = parse_macro_input!(input as Item);
     let mut m = Matching(None);
-    if let Fn(mut f) = ast.clone() {
-        m.visit_item_fn_mut(&mut f);
-        if let Some(e) = m.0 {
-            return e.into_compile_error().into();
-        } else {
-            return input_temp;
-        }
+    if let Fn(f) = &mut ast {
+        m.visit_item_fn_mut(f);
     }
-    return input_temp.into();
+    let mut output = quote! {#ast};
+    if let Some(e) = m.0 {
+        output.extend(e.to_compile_error());
+    }
+    output.into()
 }
 
-struct Matching(Option<syn::Error>);
+struct Matching(Option<Error>);
 
 impl VisitMut for Matching {
     fn visit_expr_match_mut(&mut self, i: &mut ExprMatch) {
-        i.arms.iter().for_each(|f| {
-            if let Pat::TupleStruct(p) = f.pat.clone() {
-                if p.path.segments[0].ident == "Fmt" {
-                    self.0 = Some(syn::Error::new(p.span(), "Fmt should sort before Io"));
-                }
+        let mut arms = vec![];
+        let mut sort = None;
+        i.attrs.retain(|attr| {
+            if attr.path().is_ident("sorted") {
+                sort = Some(attr.clone());
+                false
+            } else {
+                true
             }
         });
+        let len = i.arms.len();
+        i.arms.iter().enumerate().for_each(|(i, f)| {
+            if let Pat::TupleStruct(p) = f.pat.clone() {
+                arms.push((
+                    p.path
+                        .segments
+                        .iter()
+                        .map(|p| p.ident.to_string())
+                        .reduce(|acc, e| format!("{}::{}", acc, e)),
+                    p.path.segments.span(),
+                ));
+            }
 
-        // visit_expr_match_mut(self, i);
+            if let Pat::Slice(p) = f.pat.clone() {
+                if p.elems.is_empty() {
+                    self.0 = Some(Error::new(
+                        f.pat.span(),
+                        format!("unsupported by {}", sort.to_token_stream().to_string()),
+                    ));
+                    return;
+                }
+            }
+
+            if let Pat::Wild(_) = f.pat.clone()
+                && i != len - 1
+            {
+                self.0 = Some(Error::new(
+                    f.pat.span(),
+                    "wild arm should at the end of match block",
+                ));
+                return;
+            }
+        });
+        let mut new = arms.clone();
+        new.sort_by(|a, b| a.0.cmp(&b.0));
+        for (i, p) in new.iter().enumerate() {
+            let p = p.clone();
+            let o = arms[i].clone();
+            if o.0 != p.0 {
+                self.0 = Some(Error::new(
+                    p.1.span(),
+                    format!(
+                        "{} should sort before {}",
+                        p.0.unwrap_or_default(),
+                        o.0.unwrap_or_default()
+                    ),
+                ));
+                return;
+            }
+        }
+
+        visit_expr_match_mut(self, i);
     }
 }
