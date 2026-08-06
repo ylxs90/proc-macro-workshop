@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, stmt_expr_attributes)]
+//#![feature(proc_macro_hygiene, stmt_expr_attributes)]
 // Write code here.
 //
 // To see what the code looks like after macro expansion:
@@ -21,7 +21,6 @@
 // fn main() {
 //     // Does not implement Debug, but its associated type does.
 //     struct Id;
-//
 //     impl Trait for Id {
 //         type Value = u8;
 //     }
@@ -29,15 +28,38 @@
 //     assert_debug::<Field<Id>>();
 // }
 
+
 use derive_debug::CustomDebug;
+use std::fmt::Debug;
+
+pub trait Trait {
+    type Value;
+}
+
+//#[derive(CustomDebug)]
+//pub struct Field<T: Trait> {
+//    values: Vec<T::Value>,
+//}
+//
 
 #[derive(CustomDebug)]
-pub struct Field {
-    name: &'static str,
-    bitmask: u16,
+pub struct Hello<V, S, T> {
+    value : V,
+    v2 : S,
+    V3: T
+
 }
 
+fn assert_debug<F: Debug>() {}
+
 fn main() {
-    let x = 15;
-    println!("{x}");
+    // Does not implement Debug, but its associated type does.
+    struct Id;
+
+    impl Trait for Id {
+        type Value = u8;
+    }
+
+  //  assert_debug::<Field<Id>>();
 }
+

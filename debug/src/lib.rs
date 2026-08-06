@@ -135,6 +135,7 @@ fn generics_contains(p: &TypePath, g: &Option<Ident>) -> bool {
         .iter()
         .filter(|segment| segment.ident != "PhantomData")
         .any(|ref seg| {
+            println!("field type --> {:#?}", seg);
             if g == &Some(seg.ident.clone()) {
                 true
             } else {
