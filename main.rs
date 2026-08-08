@@ -7,59 +7,19 @@
 // To run the code:
 //     $ cargo run
 //
-// pub trait Trait {
-//     type Value;
-// }
-//
-// #[derive(CustomDebug)]
-// pub struct Field<T: Trait> {
-//     values: Vec<T::Value>,
-// }
-//
-// fn assert_debug<F: Debug>() {}
-//
-// fn main() {
-//     // Does not implement Debug, but its associated type does.
-//     struct Id;
-//     impl Trait for Id {
-//         type Value = u8;
-//     }
-//
-//     assert_debug::<Field<Id>>();
-// }
+use seq::seq;
 
-
-use derive_debug::CustomDebug;
-use std::fmt::Debug;
-
-pub trait Trait {
-    type Value;
+macro_rules! expand_to_nothing {
+    ($arg:literal) => {
+        // nothing
+    };
 }
 
-//#[derive(CustomDebug)]
-//pub struct Field<T: Trait> {
-//    values: Vec<T::Value>,
-//}
-//
+seq!(N in 0..4 {
+    expand_to_nothing!(N);
+});
 
-#[derive(CustomDebug)]
-pub struct Hello<V, S, T> {
-    value : V,
-    v2 : S,
-    V3: T
-
-}
-
-fn assert_debug<F: Debug>() {}
 
 fn main() {
-    // Does not implement Debug, but its associated type does.
-    struct Id;
 
-    impl Trait for Id {
-        type Value = u8;
-    }
-
-  //  assert_debug::<Field<Id>>();
 }
-
